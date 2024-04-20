@@ -51,7 +51,10 @@ faceNet = cv.dnn.readNet(faceModel, faceProto)
 # Open a video file or an image file or a camera stream
 cap = cv.VideoCapture(args.input if args.input else 0)
 padding = 20
+processed = False  # Variable to track if a frame has been processed
 while cv.waitKey(1) < 0:
+    if processed:
+        break  # If a frame has been processed, break out of the loop
     # Read frame
     t = time.time()
     hasFrame, frame = cap.read()
@@ -64,25 +67,32 @@ while cv.waitKey(1) < 0:
         print("No face Detected, Checking next frame")
         continue
 
+    all_info_detected = True  # Variable to track if all information is detected for a face
     for bbox in bboxes:
-        # print(bbox)
         face = frame[max(0,bbox[1]-padding):min(bbox[3]+padding,frame.shape[0]-1),max(0,bbox[0]-padding):min(bbox[2]+padding, frame.shape[1]-1)]
 
         blob = cv.dnn.blobFromImage(face, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
         genderNet.setInput(blob)
         genderPreds = genderNet.forward()
         gender = genderList[genderPreds[0].argmax()]
-        # print("Gender Output : {}".format(genderPreds))
         print("Gender : {}, conf = {:.3f}".format(gender, genderPreds[0].max()))
 
         ageNet.setInput(blob)
         agePreds = ageNet.forward()
         age = ageList[agePreds[0].argmax()]
-        print("Age Output : {}".format(agePreds))
         print("Age : {}, conf = {:.3f}".format(age, agePreds[0].max()))
 
         label = "{},{}".format(gender, age)
         cv.putText(frameFace, label, (bbox[0], bbox[1]-10), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv.LINE_AA)
         cv.imshow("Age Gender Demo", frameFace)
-        # cv.imwrite("age-gender-out-{}".format(args.input),frameFace)
+
+        # If either gender or age information is not detected, set all_info_detected to False
+        if gender == 'Unknown' or age == 'Unknown':
+            all_info_detected = False
+
     print("time : {:.3f}".format(time.time() - t))
+
+    # If all_info_detected is True, destroy all windows
+    if all_info_detected:
+        cv.destroyAllWindows()
+        processed = True  # Set processed to True to break out of the loop after processing this frame
